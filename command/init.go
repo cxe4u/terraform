@@ -7,12 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/hcl2/hcl"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
-	"github.com/posener/complete"
-	"github.com/zclconf/go-cty/cty"
-
-	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/terraform/backend"
 	backendInit "github.com/hashicorp/terraform/backend/init"
 	"github.com/hashicorp/terraform/config"
@@ -25,6 +22,8 @@ import (
 	"github.com/hashicorp/terraform/states"
 	"github.com/hashicorp/terraform/terraform"
 	"github.com/hashicorp/terraform/tfdiags"
+	"github.com/posener/complete"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // InitCommand is a Command implementation that takes a Terraform
@@ -337,6 +336,8 @@ func (c *InitCommand) Run(args []string) int {
 	// Now that we have loaded all modules, check the module tree for missing providers.
 	providersOutput, providerDiags := c.getProviders(earlyConfig, state, flagUpgrade)
 	diags = diags.Append(providerDiags)
+	log.Printf("diags: %v", diags)
+	c.showDiagnostics(diags)
 	if providerDiags.HasErrors() {
 		c.showDiagnostics(diags)
 		return 1
@@ -494,7 +495,8 @@ func (c *InitCommand) getProviders(earlyConfig *earlyconfig.Config, state *state
 		}
 
 		for provider, reqd := range missing {
-			_, err := c.providerInstaller.Get(provider, reqd.Versions)
+			_, providerDiags, err := c.providerInstaller.Get(provider, reqd.Versions)
+			diags = diags.Append(providerDiags)
 
 			if err != nil {
 				constraint := reqd.Versions.String()
